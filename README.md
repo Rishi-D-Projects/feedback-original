@@ -1,1 +1,1 @@
-CONFLICT_LINE: change-from-fork-by-RishiDargad18
+This repository contains the feedback form starter (created by Rishi Dargad and Adityavikram).
