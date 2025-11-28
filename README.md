@@ -1,1 +1,1 @@
-This repository contains the feedback form starter (created by Rishi Dargad and Adityavikram).
+This repository contains the feedback form project for Git workflow demonstration.
