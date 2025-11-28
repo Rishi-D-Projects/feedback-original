@@ -1,0 +1,200 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Feedback Form</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    /* --- Overall page --- */
+    :root { --max-w: 780px; --card-bg: #fff; --muted:#666; --accent:#1f7adb; }
+    body {
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: #f7f8fb;
+      margin: 32px;
+      display: flex;
+      justify-content: center;
+    }
+    main { width: 100%; max-width: var(--max-w); }
+
+    h1 { font-size: 36px; margin: 6px 0 18px; }
+    h2 { font-size: 22px; margin: 28px 0 10px; }
+
+    /* --- Card --- */
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 8px 22px rgba(20,30,50,0.06);
+      border: 1px solid rgba(18,24,40,0.05);
+    }
+
+    /* --- Form layout --- */
+    form .row { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+    label { display:block; margin:8px 0 6px; font-weight:600; color:#222; }
+    input[type="text"], input[type="email"], textarea, select {
+      width:100%;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid #e0e4ea;
+      background: #fff;
+      box-sizing:border-box;
+      font-size:14px;
+      resize:vertical;
+    }
+    .col-2 { flex:1 1 48%; min-width:220px; }
+    .col-1 { flex:1 1 100%; }
+
+    .controls { margin-top:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    button {
+      background: var(--accent); color:#fff; border:0; padding:10px 14px; border-radius:10px;
+      cursor:pointer; font-weight:600;
+      box-shadow: 0 6px 14px rgba(31,122,219,0.18);
+    }
+    button:active { transform: translateY(1px); }
+
+    /* --- Status area --- */
+    #status { margin-top:10px; font-weight:700; }
+
+    /* --- List --- */
+    #items { margin-top:8px; }
+    .item { padding:12px 14px; border-radius:8px; background:#fcfdff; border:1px solid #eef2fb; margin-bottom:10px; }
+    .item .meta { font-size:12px; color:var(--muted); margin-top:8px; }
+
+    /* responsive tweaks */
+    @media (max-width:520px){
+      .col-2 { flex-basis:100%; }
+      h1 { font-size:28px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Course Feedback</h1>
+
+    <div class="card" id="formCard" aria-labelledby="formHeading">
+      <form id="feedbackForm" autocomplete="off">
+        <div class="row">
+          <div class="col-2">
+            <label for="name">Name (optional)</label>
+            <input id="name" type="text" placeholder="Your name" />
+          </div>
+
+          <div class="col-2">
+            <label for="email">Email (optional)</label>
+            <input id="email" type="email" placeholder="you@example.com" />
+          </div>
+
+          <div class="col-1">
+            <label for="message">Feedback</label>
+            <textarea id="message" rows="4" placeholder="Write your feedback here" required></textarea>
+          </div>
+
+          <div class="col-2">
+            <label for="rating">Rating (optional)</label>
+            <select id="rating">
+              <option value="">-- select --</option>
+              <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button type="submit">Submit Feedback</button>
+          <div id="status" role="status" aria-live="polite"></div>
+        </div>
+      </form>
+    </div>
+
+    <h2>Latest Feedback</h2>
+    <div id="items"></div>
+  </main>
+
+  <!-- Firebase SDKs (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+  <script>
+    // ======= your corrected firebaseConfig (storageBucket uses appspot.com) =======
+    const firebaseConfig = {
+      apiKey: "AIzaSyDqYXmWB_K_avo5lcTTb484NG_BTN8ZmJ8",
+      authDomain: "feedback-app-7d79b.firebaseapp.com",
+      projectId: "feedback-app-7d79b",
+      storageBucket: "feedback-app-7d79b.appspot.com",
+      messagingSenderId: "876808290304",
+      appId: "1:876808290304:web:4386d16b73989cea3f98e5",
+      measurementId: "G-Q7LGNWPTKG"
+    };
+
+    // Initialize Firebase AFTER SDK loaded
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // UI refs
+    const form = document.getElementById('feedbackForm');
+    const status = document.getElementById('status');
+    const items = document.getElementById('items');
+
+    function esc(s){ return s ? String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) : ''; }
+
+    async function loadFeedback() {
+      items.innerHTML = '<div style="color:#888">Loading...</div>';
+      try {
+        const snap = await db.collection('feedbacks').orderBy('createdAt','desc').limit(10).get();
+        items.innerHTML = '';
+        if (snap.empty) { items.innerHTML = '<div style="color:var(--muted)">No feedback yet</div>'; return; }
+        snap.forEach(doc => {
+          const d = doc.data();
+          const dateStr = d.createdAt && d.createdAt.seconds ? (new Date(d.createdAt.seconds*1000)).toLocaleString() : '';
+          const el = document.createElement('div');
+          el.className = 'item';
+          el.innerHTML = `
+            <div>${esc(d.message)}</div>
+            <div class="meta">${d.name ? esc(d.name) + ' · ' : ''}${d.rating ? 'Rating: ' + esc(d.rating) + ' · ' : ''}${d.email ? esc(d.email) + ' · ' : ''}${dateStr}</div>
+          `;
+          items.appendChild(el);
+        });
+      } catch (err) {
+        items.innerHTML = '<div style="color:red">Failed to load feedback</div>';
+        console.error('loadFeedback error', err);
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      status.textContent = ''; status.style.color = '#222';
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const message = document.getElementById('message').value.trim();
+      const rating = document.getElementById('rating').value;
+
+      if (!message) {
+        status.style.color = 'red';
+        status.textContent = 'Please enter feedback message.';
+        return;
+      }
+
+      try {
+        const res = await db.collection('feedbacks').add({
+          name: name || null,
+          email: email || null,
+          message,
+          rating: rating ? Number(rating) : null,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        status.style.color = 'green';
+        status.textContent = 'Feedback submitted! Refreshing list...';
+        form.reset();
+        setTimeout(loadFeedback, 900);
+        console.log('submitted', res.id);
+      } catch (err) {
+        console.error('submit err', err);
+        status.style.color = 'red';
+        status.textContent = 'Error submitting feedback: ' + (err.message || err);
+      }
+    });
+
+    // initial load
+    loadFeedback();
+  </script>
+</body>
+</html>
